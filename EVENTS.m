@@ -1,0 +1,5 @@
+classdef EVENTS
+    enumeration
+        FORWARD, REVERSE, STOPPED, TURNING, MANUAL, PICKUP, DROPOFF, STARTUP, QUIT
+    end
+end
