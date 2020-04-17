@@ -1,4 +1,4 @@
-classdef EVENTS
+classdef STATE
     enumeration
         FORWARD, REVERSE, STOPPED, TURNLEFT, TURNRIGHT, MANUAL, PICKUP, DROPOFF
     end

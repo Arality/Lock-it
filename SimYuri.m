@@ -1,5 +1,3 @@
-% brick = ConnectBrick('YURI');
-
 % Run the following commands manually at first startup
 %brick = SimBrick;
 %brick.conn.write('SET motorRange 2 -2000 2000');
@@ -17,59 +15,91 @@ COLORSENSORPORT = 3;
 ULTRASONICSENSORPORT = 4;
 POWER = 100;
 
+
 % Setup
 global key;
 InitKeyboard();
-global event;
-event = EVENTS.STOPPED;
+global state;
+state = STATE.STOPPED;
 global running;
 running = true;
 
 while running
     pause(0.1);
-    switch event
-        case EVENTS.FORWARD
-            disp("Forward Event");
-            moveForward(brick, BOTHMOTORSPORT, 24)
+    switch state
+        case STATE.FORWARD
+            disp("Forward State");
+            brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 7375, 'Brake');
             while brick.MotorBusy(BOTHMOTORSPORT) == 1 & brick.TouchPressed(BUTTONSENSORPORT) == 0
+                color = brick.ColorColor(3);
+                if color == 3
+                    brick.StopAllMotors;
+                    brick.MoveMotorAngleRel('B', 100, 1400, 'Brake'); %Close Claw
+                end
+                
+                if color == 4
+                    brick.StopAllMotors;
+                    brick.MoveMotorAngleRel('B', 100, -1400, 'Brake'); %Open Claw
+                end
+                if color == 5
+                    disp("Stopping at red light");
+                    brick.StopAllMotors;
+                    brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 3687, 'Brake');
+                end
             end
             if brick.TouchPressed(BUTTONSENSORPORT) == 1
-                event = EVENTS.REVERSE;
+                state= STATE.REVERSE;
+                
             else
-                event = EVENTS.STOPPED;
+                state= STATE.STOPPED;
             end
             
-        case EVENTS.REVERSE
+        case STATE.REVERSE
             brick.StopAllMotors();
-            disp("Reverse Event");
-            brick.MoveMotorAngleRel(LEFTMOTORPORT, 100, -1000, 'Brake');
-            brick.MoveMotorAngleRel(RIGHTMOTORPORT, 100, -1000, 'Brake');
+            disp("Reverse State");
+            brick.MoveMotorAngleRel(LEFTMOTORPORT, 100, -2500, 'Brake');
+            brick.MoveMotorAngleRel(RIGHTMOTORPORT, 100, -2500, 'Brake');
             brick.WaitForMotor(LEFTMOTORPORT);
             brick.WaitForMotor(RIGHTMOTORPORT);
-            event = EVENTS.TURNING;
+            brick.StopAllMotors();
+            state = STATE.TURNLEFT;
             
-        case EVENTS.STOPPED
-            disp("Stopped Event");
+        case STATE.STOPPED
+            disp("Stopped State");
             wallDistance = getDistance(brick, ULTRASONICSENSORPORT);
             disp("The wall is " + wallDistance + "in away");
             if wallDistance <= 24
-                event = EVENTS.FORWARD;
+                state = STATE.FORWARD;
             elseif wallDistance  > 24
-                event = EVENTS.TURNING;
+                state = STATE.TURNRIGHT;
             end
             
-        case EVENTS.TURNING
-            disp("Turning Event");
-            turnLeft90(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-            event = EVENTS.FORWARD;
+        case STATE.TURNLEFT
+            disp("Turning Left State");
+            brick.MoveMotorAngleRel(LEFTMOTORPORT, 70, -1100, 'Brake');
+            brick.MoveMotorAngleRel(RIGHTMOTORPORT, 70, 1100, 'Brake');
+            brick.WaitForMotor(LEFTMOTORPORT);
+            brick.WaitForMotor(LEFTMOTORPORT);
+            brick.StopAllMotors;
+            state = STATE.FORWARD;
             
-        case EVENTS.MANUAL
+        case STATE.TURNRIGHT
+            disp("Turning Right State");
+            brick.MoveMotorAngleRel(LEFTMOTORPORT, 70, 1100, 'Brake');
+            brick.MoveMotorAngleRel(RIGHTMOTORPORT, 70, -1100, 'Brake');
+            brick.WaitForMotor(LEFTMOTORPORT);
+            brick.WaitForMotor(LEFTMOTORPORT);
+            brick.StopAllMotors;
+            state = STATE.FORWARD;
             
-        case EVENTS.PICKUP
+        case STATE.MANUAL
             
-        case EVENTS.DROPOFF
+        case STATE.PICKUP
             
-        case EVENTS.QUIT
+        case STATE.DROPOFF
+            
+            
+        case STATE.QUIT
             CloseKeyboard();
             running = false;
     end
@@ -87,6 +117,67 @@ function convertedNumber = convertToInches(number)
 convertedNumber = number * 0.3937;
 end
 
+% Manual Mode Control
+function manualMode = manualMode(bot, leftMotor, rightMotor)
+bothMotors = strcat(leftMotor, rightMotor);
+manualControl = true;
+speed = 100;
+global key
+InitKeyboard();
+while manualControl
+    pause(0.1);
+    switch key
+        case 'uparrow'
+            bot.MoveMotor(bothMotors, speed);
+        case 'downarrow'
+            bot.StopAllMotors();
+        case 'rightarrow'
+            bot.MoveMotor(leftMotor, speed);
+            bot.MoveMotor(rightMotor, -speed);
+        case 'leftarrow'
+            bot.MoveMotor(leftMotor, -speed);
+            bot.MoveMotor(rightMotor, speed);
+        case 'r'
+            bot.MoveMotor(bothMotors, -speed);
+        case 'q'
+            manualControl = false;
+        case '1'
+            speed = 10;
+            disp("Speed set to " + speed);
+        case '2'
+            speed = 20;
+            disp("Speed set to " + speed);
+        case '3'
+            speed = 30;
+            disp("Speed set to " + speed);
+        case '4'
+            speed = 40;
+            disp("Speed set to " + speed);
+        case '5'
+            speed = 50;
+            disp("Speed set to " + speed);
+        case '6'
+            speed = 60;
+            disp("Speed set to " + speed);
+        case '7'
+            speed = 70;
+            disp("Speed set to " + speed);
+        case '8'
+            speed = 80;
+            disp("Speed set to " + speed);
+        case '9'
+            speed = 90;
+            disp("Speed set to " + speed);
+        case '0'
+            speed = 100;
+            disp("Speed set to " + speed);
+    end
+end
+end
+
+%{
+Functions to be implemented:
+
 % Converts REL angle to distance in inches
 function angle = convertREL(inches)
 angle = inches * 122.9167;  % 122.9167 = (2950/24) = (moveMotorAngleRel distance measured over 24" \ 24")
@@ -96,7 +187,7 @@ end
 function moveForward = moveForward(bot, bothMotors, inchDistance)
 % 2950 = 24"
 % 1475 = 12"
-bot.MoveMotorAngleRel(bothMotors, 100, convertREL(inchDistance), 'Coast')
+bot.MoveMotorAngleRel(bothMotors, 100, convertREL(inchDistance), 'Brake')
 end
 
 % Keep moving forward
@@ -111,12 +202,12 @@ end
 
 % Turn right 90 degrees
 function turnRight90 = turnRight90(bot, leftMotor, rightMotor)
-bot.MoveMotorAngleRel(leftMotor, 70, -650, 'Coast');
-bot.MoveMotorAngleRel(rightMotor, 70, 650, 'Coast');
+bot.MoveMotorAngleRel(leftMotor, 70, -700, 'Coast');
+bot.MoveMotorAngleRel(rightMotor, 70, 700, 'Coast');
 bot.StopAllMotors;
 end
 
-% Keep turnig right
+% Keep turning right
 function turnRight = turnRight(bot, leftMotor, rightMotor)
 bot.MoveMotor(leftMotor, 100);
 bot.MoveMotor(rightMotor, -100);
@@ -124,8 +215,8 @@ end
 
 % Turn left 90 degrees
 function turnLeft90 = turnLeft90(bot, leftMotor, rightMotor)
-bot.MoveMotorAngleRel(leftMotor, 70, 650, 'Coast');
-bot.MoveMotorAngleRel(rightMotor, 70, -650, 'Coast');
+bot.MoveMotorAngleRel(leftMotor, 70, 700, 'Coast');
+bot.MoveMotorAngleRel(rightMotor, 70, -700, 'Coast');
 bot.WaitForMotor(leftMotor);
 bot.WaitForMotor(rightMotor);
 bot.StopAllMotors;
@@ -139,14 +230,14 @@ end
 
 % Turn 180
 function turn180 = turn180(bot, leftMotor, rightMotor)
-bot.MoveMotorAngleRel(leftMotor, 70, 1000, 'Coast');
-bot.MoveMotorAngleRel(rightMotor, 70, -1000, 'Coast');
+bot.MoveMotorAngleRel(leftMotor, 70, 1000, �Brake�);
+bot.MoveMotorAngleRel(rightMotor, 70, -1000, �Brake�);
 bot.StopAllMotors;
 end
 
 %Move Motor backwards 12 inches
 function reverse12 = reverse12(bot, motorPorts)
-bot.MoveMotorAngleRel(motorPorts, -100, 1000, 'Coast');
+bot.MoveMotorAngleRel(motorPorts, -100, 1000, �Brake�);
 bot.StopAllMotors();
 end
 
@@ -154,35 +245,4 @@ end
 function reverse = reverse(bot, port)
 bot.MoveMotor(port, -100);
 end
-
-%{
-Functions to be implemented:
-            switch AUTONOMOUSMODE
-                case false  % Yuri under manual control
-                    manualControl = true;
-                    while manualControl
-                        pause(0.1);
-                        switch key
-                            case 'uparrow'
-                                continousMoveForward(brick, BOTHMOTORSPORT);
-                            case 'downarrow'
-                                brick.StopAllMotors();
-                            case 'rightarrow'
-                                turnRight(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            case 'leftarrow'
-                                turnLeft(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            case 'r'
-                                reverse(brick, BOTHMOTORSPORT);
-                            case 'q'
-                                manualControl = false;
-                                event = EVENTS.QUIT;
-                                break;
-                            case 'c'
-                                manualControl = false;
-                                event = EVENTS.STOPPED;
-                                break;
-                        end
-                    end
-
-
 %}
