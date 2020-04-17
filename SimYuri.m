@@ -1,7 +1,7 @@
 % brick = ConnectBrick('YURI');
-%brick = SimBrick;
 
-% Sim Settings
+% Run the following commands manually at first startup
+%brick = SimBrick;
 %brick.conn.write('SET motorRange 2 -2000 2000');
 %brick.conn.write('SET driveGearRatio 0.1666666 1.0');
 %brick.conn.write('SET effectiveWheelbase 4.45');
@@ -21,87 +21,60 @@ POWER = 100;
 global key;
 InitKeyboard();
 global event;
+event = EVENTS.STOPPED;
+global running;
 running = true;
-event = EVENTS.STARTUP;
-global BUTTON;
-BUTTON = brick.TouchPressed(BUTTONSENSORPORT);
-global AUTONOMOUSMODE;
-AUTONOMOUSMODE = true;
 
 while running
     pause(0.1);
-    switch BUTTON
-        case 1  % Button Pressed
-            reverse12(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-            event = EVENTS.STOPPED
-        case 0  % Button not pressed
-            switch AUTONOMOUSMODE
-                case false  % Yuri under manual control
-                    manualControl = true;
-                    while manualControl
-                        pause(0.1);
-                        switch key
-                            case 'uparrow'
-                                continousMoveForward(brick, BOTHMOTORSPORT);
-                            case 'downarrow'
-                                brick.StopAllMotors();
-                            case 'rightarrow'
-                                turnRight(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            case 'leftarrow'
-                                turnLeft(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            case 'r'
-                                reverse(brick, BOTHMOTORSPORT);
-                            case 'q'
-                                manualControl = false;
-                                event = EVENTS.QUIT;
-                                break;
-                            case 'c'
-                                manualControl = false;
-                                event = EVENTS.STOPPED;
-                                break;
-                        end
-                    end
-                case true   % Yuri under autonomous control
-                    switch event
-                        case EVENTS.STARTUP
-                            % Setup sim values
-                            
-                            event = EVENTS.STOPPED;
-                        case EVENTS.FORWARD
-                            for i = 0:3
-                                touch = brick.TouchPressed(BUTTONSENSORPORT);
-                                if touch
-                                    event = EVENTS.REVERSE;
-                                end
-                                moveForward(brick, LEFTMOTORPORT, RIGHTMOTORPORT, 6)
-                            end
-                            event = EVENTS.STOPPED;
-                        case EVENTS.REVERSE
-                            reverse12(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            event = EVENTS.STOPPED;
-                        case EVENTS.STOPPED
-                            wallDistance = getDistance(brick, ULTRASONICSENSORPORT);
-                            if wallDistance <= 24
-                                event = EVENTS.FORWARD;
-                            elseif wallDistance  > 24
-                                event = EVENTS.TURNING;
-                            end
-                        case EVENTS.TURNING
-                            turnRight90(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
-                            event = EVENTS.STOPPED;
-                        case EVENTS.MANUAL
-                            
-                        case EVENTS.PICKUP
-                            
-                        case EVENTS.DROPOFF
-                            
-                        case EVENTS.QUIT
-                            CloseKeyboard();
-                            running = false;
-                    end
+    switch event
+        case EVENTS.FORWARD
+            disp("Forward Event");
+            moveForward(brick, BOTHMOTORSPORT, 24)
+            while brick.MotorBusy(BOTHMOTORSPORT) == 1 & brick.TouchPressed(BUTTONSENSORPORT) == 0
             end
+            if brick.TouchPressed(BUTTONSENSORPORT) == 1
+                event = EVENTS.REVERSE;
+            else
+                event = EVENTS.STOPPED;
+            end
+            
+        case EVENTS.REVERSE
+            brick.StopAllMotors();
+            disp("Reverse Event");
+            brick.MoveMotorAngleRel(LEFTMOTORPORT, 100, -1000, 'Brake');
+            brick.MoveMotorAngleRel(RIGHTMOTORPORT, 100, -1000, 'Brake');
+            brick.WaitForMotor(LEFTMOTORPORT);
+            brick.WaitForMotor(RIGHTMOTORPORT);
+            event = EVENTS.TURNING;
+            
+        case EVENTS.STOPPED
+            disp("Stopped Event");
+            wallDistance = getDistance(brick, ULTRASONICSENSORPORT);
+            disp("The wall is " + wallDistance + "in away");
+            if wallDistance <= 24
+                event = EVENTS.FORWARD;
+            elseif wallDistance  > 24
+                event = EVENTS.TURNING;
+            end
+            
+        case EVENTS.TURNING
+            disp("Turning Event");
+            turnLeft90(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
+            event = EVENTS.FORWARD;
+            
+        case EVENTS.MANUAL
+            
+        case EVENTS.PICKUP
+            
+        case EVENTS.DROPOFF
+            
+        case EVENTS.QUIT
+            CloseKeyboard();
+            running = false;
     end
 end
+
 
 % Ultrasonic code
 % Returns the distance reading in inches from the ultrasonic sensor
@@ -119,12 +92,11 @@ function angle = convertREL(inches)
 angle = inches * 122.9167;  % 122.9167 = (2950/24) = (moveMotorAngleRel distance measured over 24" \ 24")
 end
 
-% Move Motor forward 24 inches
-function moveForward = moveForward(bot, leftMotor, rightMotor, inchDistance)
+% Move Motor forward  inches
+function moveForward = moveForward(bot, bothMotors, inchDistance)
 % 2950 = 24"
 % 1475 = 12"
-bot.MoveMotorAngleRel(leftMotor, 100, convertREL(inchDistance), 'Coast')
-bot.MoveMotorAngleRel(rightMotor, 100, convertREL(inchDistance), 'Coast')
+bot.MoveMotorAngleRel(bothMotors, 100, convertREL(inchDistance), 'Coast')
 end
 
 % Keep moving forward
@@ -154,6 +126,8 @@ end
 function turnLeft90 = turnLeft90(bot, leftMotor, rightMotor)
 bot.MoveMotorAngleRel(leftMotor, 70, 650, 'Coast');
 bot.MoveMotorAngleRel(rightMotor, 70, -650, 'Coast');
+bot.WaitForMotor(leftMotor);
+bot.WaitForMotor(rightMotor);
 bot.StopAllMotors;
 end
 
@@ -171,20 +145,44 @@ bot.StopAllMotors;
 end
 
 %Move Motor backwards 12 inches
-function reverse12 = reverse12(bot, leftMotor, rightMotor)
-bot.MoveMotorAngleRel(leftMotor, 70, 1000, 'Coast');
-bot.MoveMotorAngleRel(rightMotor, 70, -1000, 'Coast');
-bot.StopAllMotors;
+function reverse12 = reverse12(bot, motorPorts)
+bot.MoveMotorAngleRel(motorPorts, -100, 1000, 'Coast');
+bot.StopAllMotors();
 end
 
-%Move Motor backwards 12 inches
+%Move Motor backwards
 function reverse = reverse(bot, port)
 bot.MoveMotor(port, -100);
 end
 
 %{
 Functions to be implemented:
-
+            switch AUTONOMOUSMODE
+                case false  % Yuri under manual control
+                    manualControl = true;
+                    while manualControl
+                        pause(0.1);
+                        switch key
+                            case 'uparrow'
+                                continousMoveForward(brick, BOTHMOTORSPORT);
+                            case 'downarrow'
+                                brick.StopAllMotors();
+                            case 'rightarrow'
+                                turnRight(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
+                            case 'leftarrow'
+                                turnLeft(brick, LEFTMOTORPORT, RIGHTMOTORPORT);
+                            case 'r'
+                                reverse(brick, BOTHMOTORSPORT);
+                            case 'q'
+                                manualControl = false;
+                                event = EVENTS.QUIT;
+                                break;
+                            case 'c'
+                                manualControl = false;
+                                event = EVENTS.STOPPED;
+                                break;
+                        end
+                    end
 
 
 %}
