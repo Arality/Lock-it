@@ -15,7 +15,6 @@ COLORSENSORPORT = 3;
 ULTRASONICSENSORPORT = 4;
 POWER = 100;
 
-
 % Setup
 global key;
 InitKeyboard();
@@ -23,6 +22,11 @@ global state;
 state = STATE.STOPPED;
 global running;
 running = true;
+passengerOnBoard = false;
+
+
+% Uncomment line to go straight into manual mode for testing
+state = STATE.MANUAL;
 
 while running
     pause(0.1);
@@ -32,19 +36,36 @@ while running
             brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 7375, 'Brake');
             while brick.MotorBusy(BOTHMOTORSPORT) == 1 & brick.TouchPressed(BUTTONSENSORPORT) == 0
                 color = brick.ColorColor(3);
-                if color == 3
-                    brick.StopAllMotors;
-                    brick.MoveMotorAngleRel('B', 100, 1400, 'Brake'); %Close Claw
+                if color == 3   % Green detected
+                    if passengerOnBoard == false;
+                        brick.StopAllMotors;
+                        manualMode(brick, LEFTMOTORPORT, RIGHTMOTORPORT, SMALLMOTORPORT);
+                        passengerOnBoard = true;
+                    end
                 end
                 
-                if color == 4
-                    brick.StopAllMotors;
-                    brick.MoveMotorAngleRel('B', 100, -1400, 'Brake'); %Open Claw
+                if color == 4   %Yellow Goal Zone
+                    if passengerOnBoard == true
+                        brick.StopAllMotors;
+                        brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 2500, 'Brake');
+                        brick.WaitForMotor(LEFTMOTORPORT);
+                        brick.WaitForMotor(RIGHTMOTORPORT);
+                        disp("Dropping Passenger");
+                        brick.MoveMotorAngleRel(SMALLMOTORPORT, 100, -1400, 'Brake'); %Open Claw
+                        brick.WaitForMotor(SMALLMOTORPORT);
+                        brick.StopAllMotors;
+                        state = STATE.QUIT;
+                        break;
+                    end
                 end
-                if color == 5
+                if color == 5   % Red Light
                     disp("Stopping at red light");
                     brick.StopAllMotors;
+                    pause(5);
                     brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 3687, 'Brake');
+                    brick.WaitForMotor(LEFTMOTORPORT);
+                    brick.WaitForMotor(RIGHTMOTORPORT);
+                    brick.StopAllMotors;
                 end
             end
             if brick.TouchPressed(BUTTONSENSORPORT) == 1
@@ -93,18 +114,19 @@ while running
             state = STATE.FORWARD;
             
         case STATE.MANUAL
-            
-        case STATE.PICKUP
-            
-        case STATE.DROPOFF
-            
-            
+            manualMode(brick, LEFTMOTORPORT, RIGHTMOTORPORT, SMALLMOTORPORT);
+            if state == STATE.QUIT
+                break;
+            else
+                state = STATE.STOPPED;
+            end
         case STATE.QUIT
             CloseKeyboard();
             running = false;
     end
 end
 
+disp("Congrats you reached the goal");
 
 % Ultrasonic code
 % Returns the distance reading in inches from the ultrasonic sensor
@@ -118,12 +140,14 @@ convertedNumber = number * 0.3937;
 end
 
 % Manual Mode Control
-function manualMode = manualMode(bot, leftMotor, rightMotor)
+function manualMode = manualMode(bot, leftMotor, rightMotor, clawMotor)
+disp("Entering manual control");
 bothMotors = strcat(leftMotor, rightMotor);
 manualControl = true;
 speed = 100;
 global key
 InitKeyboard();
+clawOpen = true;
 while manualControl
     pause(0.1);
     switch key
@@ -141,6 +165,24 @@ while manualControl
             bot.MoveMotor(bothMotors, -speed);
         case 'q'
             manualControl = false;
+        case 'z'
+            state = STATE.QUIT;
+            manualControl = false;
+            break;
+        case 'space'
+            if clawOpen == true
+                bot.MoveMotorAngleRel(clawMotor, 100, 1400, 'Brake'); %Close Claw
+                disp("Closing Claw");
+                clawOpen = false;
+                bot.WaitForMotor(clawMotor);
+                bot.StopAllMotors;
+            else
+                bot.MoveMotorAngleRel(clawMotor, 100, -1400, 'Brake'); %Open Claw
+                disp("Opening Claw");
+                clawOpen = true;
+                bot.WaitForMotor(clawMotor);
+                bot.StopAllMotors;
+            end
         case '1'
             speed = 10;
             disp("Speed set to " + speed);
