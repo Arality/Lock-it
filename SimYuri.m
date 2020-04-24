@@ -23,10 +23,11 @@ state = STATE.STOPPED;
 global running;
 running = true;
 passengerOnBoard = false;
+inGoalZone = false;
 
 
 % Uncomment line to go straight into manual mode for testing
-state = STATE.MANUAL;
+%state = STATE.MANUAL;
 
 while running
     pause(0.1);
@@ -46,8 +47,10 @@ while running
                 
                 if color == 4   %Yellow Goal Zone
                     if passengerOnBoard == true
+                        disp("Found goal zone, and we have passenger onboard. Moving inside");
+                        inGoalZone = true;
                         brick.StopAllMotors;
-                        brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 2500, 'Brake');
+                        brick.MoveMotorAngleRel(BOTHMOTORSPORT, 100, 4000, 'Brake');
                         brick.WaitForMotor(LEFTMOTORPORT);
                         brick.WaitForMotor(RIGHTMOTORPORT);
                         disp("Dropping Passenger");
@@ -71,6 +74,8 @@ while running
             if brick.TouchPressed(BUTTONSENSORPORT) == 1
                 state= STATE.REVERSE;
                 
+            elseif inGoalZone == true
+                break;
             else
                 state= STATE.STOPPED;
             end
@@ -127,6 +132,7 @@ while running
 end
 
 disp("Congrats you reached the goal");
+disp("END");
 
 % Ultrasonic code
 % Returns the distance reading in inches from the ultrasonic sensor
@@ -146,6 +152,7 @@ bothMotors = strcat(leftMotor, rightMotor);
 manualControl = true;
 speed = 100;
 global key
+global state;
 InitKeyboard();
 clawOpen = true;
 while manualControl
